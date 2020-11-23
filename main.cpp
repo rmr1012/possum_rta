@@ -46,6 +46,7 @@ void parseCommand(){
   else if (strInStr("STATUS",cmd)){ // print all stages
     roomTemp.read();
     driveTemp.read();
+    ThisThread::sleep_for(100);
     printf("CH1: %.4f, CH2: %.4f, IT: %.2f, IH: %d, CT: %.2f, CH: %d\n", ch1, ch2, roomTemp.getFahrenheit(), roomTemp.getHumidity(), driveTemp.getFahrenheit(), driveTemp.getHumidity());
 
   }
