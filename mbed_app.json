@@ -1,0 +1,13 @@
+{
+    "target_overrides": {
+        "*": {
+            "platform.error-all-threads-info": true,
+            "platform.error-filename-capture-enabled": true,
+            "platform.error-hist-enabled": true,
+            "platform.cpu-stats-enabled": true,
+            "platform.sys-stats-enabled": true,
+            "platform.thread-stats-enabled": true,
+            "platform.stack-stats-enabled": true
+        }
+    }
+}
