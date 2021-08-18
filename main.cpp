@@ -5,23 +5,28 @@
 #include "utilities.hpp"
 #include "mbed.h"
 #include "Dht11.h"
-
+#include <iostream>
+#include <list>
+// #include <chrono>
 // Serial pc(USBTX, USBRX);
 AnalogIn  ch1(A4);
 AnalogIn  ch2(A5);
 
-DigitalOut fridge(PB_12);
-DigitalOut inverter(PA_11);
+DigitalOut heartbeat(LED1);
+
+DigitalOut fridge(PA_11);
+DigitalOut inverter(PA_12);
+
 AnalogIn dimmer(A0);
 PwmOut light(PC_6);
-Dht11 roomTemp(PC_10);
-Dht11 driveTemp(PC_12);
+Dht11 roomTemp(PA_13);
+Dht11 driveTemp(PA_14);
 
 
 Serial theTerm(USBTX,USBRX,115200);// tx, rx
 
 EventQueue queue(32 * EVENTS_EVENT_SIZE);
-Thread t;
+Thread t,thb;
 
 static char LEFTKEY   =0x44;
 static char RIGHTKEY  =0x43;
@@ -30,6 +35,7 @@ static char DOWNKEY   =0x42;
 static char arrowSeq1 =0x1b;
 static char arrowSeq2 =0x5b;
 string commandBuffer;
+
 
 void parseCommand();
 void toggleRelay(int chan, bool onoff);
@@ -46,8 +52,8 @@ void parseCommand(){
   else if (strInStr("STATUS",cmd)){ // print all stages
     roomTemp.read();
     driveTemp.read();
-    ThisThread::sleep_for(100);
-    printf("CH1: %.4f, CH2: %.4f, IT: %.2f, IH: %d, CT: %.2f, CH: %d\n", ch1, ch2, roomTemp.getFahrenheit(), roomTemp.getHumidity(), driveTemp.getFahrenheit(), driveTemp.getHumidity());
+    ThisThread::sleep_for(200);
+    printf("CH1: %.4f, CH2: %.4f, DM: %.4f, IT: %.2f, IH: %d, CT: %.2f, CH: %d, FR %i, IV: %i \n", ch1.read(), ch2.read(), dimmer.read(), roomTemp.getFahrenheit(), roomTemp.getHumidity(), driveTemp.getFahrenheit(), driveTemp.getHumidity(), (bool)fridge, (bool)inverter);
 
   }
   else if (strInStr("RESET ",cmd)){ // print all stages
@@ -79,22 +85,37 @@ void toggleRelay(int chan, bool onoff){
       break;
   }
 }
+template <unsigned N>
+double approxRollingAverage (double avg, double input) {
+    avg -= avg/N;
+    avg += input/N;
+    return avg;
+}
+
+void hbThread()
+{
+    while (true) {
+        printf("I'm alive\n")
+        heartbeat = !heartbeat;
+        ThisThread::sleep_for(500);
+    }
+}
 
 int main() {
+    thb.start(hbThread);
     t.start(callback(&queue, &EventQueue::dispatch_forever));
     wait(0.1);
     printf("Hello RTA \n");
-    theTerm.puts("$term ");
-
+    theTerm.puts("$rta ");
 
     fridge=1;
     inverter=1;
 
     light.period(0.005f);      // 4 second period
-    light.write(0.50f);      // 50% duty cycle, relative to period
+    light.write(0.20f);      // 50% duty cycle, relative to period
 
     int counter=20;
-    float perc=(float)counter/20.0;
+    double avg=0;
 
 
     bool ctrlc;
@@ -115,12 +136,14 @@ int main() {
     static uint8_t upkeys;
 
     while(1){
-
+      heartbeat = !heartbeat;
        if (dimmer.read()<=0.05){
          light.write(0);
        }
        else{
-         light.write((dimmer.read()-0.05)/0.95);
+         avg=approxRollingAverage<1000>(avg,(dimmer.read()-0.05)/0.95);
+         light.write(avg);
+
        }
 
        while(theTerm.readable()){
@@ -238,7 +261,7 @@ int main() {
              #endif
 
            }
-           if(theChar=='\n' ){
+           if(theChar=='\n'){
              // if(serialBuffer.size()>1){
                // printf("|");
                commandBuffer=toUpper(serialBuffer);
@@ -251,7 +274,7 @@ int main() {
                cursor=0;
                upkeys=0;
                parseCommand();
-               theTerm.puts("$term ");
+               theTerm.puts("$rta ");
 
            }
 
